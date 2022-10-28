@@ -8,6 +8,7 @@
 #include <gl\\gl.h>
 #include <gl\\glu.h>
 #include <vector>
+#include <algorithm>
 #pragma comment (linker, "/defaultlib:opengl32.lib")
 #pragma comment (linker, "/defaultlib:glu32.lib")
 #define MAX_LOADSTRING 100
@@ -19,8 +20,6 @@ struct C3dVector
     double x, y, z;
 };
 
-void find();
-void updatePoints();
 class Surface
 {
 private:
@@ -45,21 +44,24 @@ public:
     float getLengthFromLowToMiddle();
     float getLengthFromMiddleToEnd();
     void drawObject();
-    void drawCone(double r_low, double r_up, double h, int n);
+    void drawCone(double r_low, double r_up, double h, int n, bool isSecond);
     void drawCircle(float r);
 };
 
 // Глобальные переменные:
 HINSTANCE hInst;                                // текущий экземпляр
-WCHAR szTitle[MAX_LOADSTRING];                  // Текст строки заголовка
+WCHAR szTitle[MAX_LOADSTRING] = {'S', 'u', 'r', 'f', 'a', 'c', 'e'}; // Текст строки заголовка
 WCHAR szWindowClass[MAX_LOADSTRING];            // имя класса главного окна
 HWND g_hWindow;
 HGLRC hGLRC;
 HDC hDC;
+Surface first = Surface();
+Surface second = Surface();
+double angle = -75 * (PI / 180);
 
 float xAlfa = 100; // наклон мира
 float zAlfa = 45; // вращение мира
-float surfaceAngle = 75.0f;
+double surfaceAngle = 75.0; // наклон поверхностей
 int g_wndWidth = -1, g_wndHeight = -1;
 // размер сцены
 double g_sceneWidth = 50.0;
@@ -70,8 +72,9 @@ ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK	Features(HWND, UINT, WPARAM, LPARAM);
-INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
-
+INT_PTR CALLBACK    ChangeParameters(HWND, UINT, WPARAM, LPARAM);
+void find(); // Функция нахождения точек пересечения поверхностей
+void updatePoints(); // Обновление координат точек поверхностей после поворота
 
 float Surface::getHLow() {
     return hLow;
@@ -113,48 +116,46 @@ void Surface::setLengthFromMiddleToEnd(float value) {
     lengthFromMiddleToEnd = value;
 }
 
-void Surface::drawCone(double r_low, double r_up, double h, int n) {
+void Surface::drawCone(double r_low, double r_up, double h, int n, bool isSecond) {
         double   x1, x2, x3, x4,
             y1, y2, y3, y4,
             z1, z2, z3, z4,
             z, dz, fi, dfi, r1, r2, dr, sina, l, r;
-
         int      nh, i;
-
         C3dVector  v1, v2, v3, v4, vn, v21, v31;
         r1 = (r_low > r_up) ? r_low : r_up;
-
-
         dr = r_low - r_up;
-
         l = sqrt(pow(h, 2.0) + pow(dr, 2.0));
         sina = h / l;
-
         dfi = 2.0 * PI / n;
-
         nh = (int)(l / (r1 * dfi));
-
         dz = (l / nh) * sina;
         dr /= nh;
-
         h *= 0.5;
-
         glBegin(GL_QUADS);
-
         for (r = r_low, z = -h, i = 1; i <= nh; z += dz, r -= dr, i++)
         {
             r1 = r - dr;
-
             for (fi = -PI; fi < PI; fi += dfi)
             {
                 x1 = r * cos(fi);      y1 = r * sin(fi);       z1 = z;
-                v1.x = x1; v1.y = y1; v1.z = z1;
                 x2 = r * cos(fi + dfi);  y2 = r * sin(fi + dfi);	  z2 = z;
-                v2.x = x2; v2.y = y2; v2.z = z2;
                 x3 = r1 * cos(fi + dfi); y3 = r1 * sin(fi + dfi);  z3 = z + dz;
-                v3.x = x3; v3.y = y3; v3.z = z3;
                 x4 = r1 * cos(fi);     y4 = r1 * sin(fi);      z4 = z + dz;
-                v4.x = x4; v4.y = y4; v4.z = z4;
+                if (isSecond)
+                {
+                    v1.x = x1; v1.y = y1; v1.z = z1 + lengthFromLowToMiddle * 0.5;
+                    v2.x = x2; v2.y = y2; v2.z = z2 + lengthFromLowToMiddle * 0.5;
+                    v3.x = x3; v3.y = y3; v3.z = z3 + lengthFromLowToMiddle * 0.5;
+                    v4.x = x4; v4.y = y4; v4.z = z4 + lengthFromLowToMiddle * 0.5;
+                }
+                else
+                {
+                    v1.x = x1; v1.y = y1; v1.z = z1;
+                    v2.x = x2; v2.y = y2; v2.z = z2;
+                    v3.x = x3; v3.y = y3; v3.z = z3;
+                    v4.x = x4; v4.y = y4; v4.z = z4;
+                }
                 points.push_back(v1);
                 points.push_back(v2);
                 points.push_back(v3);
@@ -191,14 +192,14 @@ void Surface::drawObject() {
         glPushMatrix();
         if (i == 1) {
             glTranslatef(0, 0, lengthFromLowToMiddle / 2);
-            drawCone(hMiddle, hEnd, lengthFromMiddleToEnd, 150);
+            drawCone(hMiddle, hEnd, lengthFromMiddleToEnd, 20, true);
             glPushMatrix();
             glTranslatef(0, 0, lengthFromMiddleToEnd / 2);
             drawCircle(hEnd);
             glPopMatrix();
         }
         else {
-            drawCone(hLow, hMiddle, lengthFromLowToMiddle, 150);
+            drawCone(hLow, hMiddle, lengthFromLowToMiddle, 20, false);
             glPushMatrix();
             glTranslatef(0, 0, -lengthFromLowToMiddle / 2);
             drawCircle(hLow);
@@ -240,7 +241,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(lpCmdLine);
 
     // Инициализация глобальных строк
-    LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
+    //LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
     LoadStringW(hInstance, IDC_PLANETS, szWindowClass, MAX_LOADSTRING);
     MyRegisterClass(hInstance);
 
@@ -369,9 +370,6 @@ void CALLBACK resize(int width, int height)
     g_wndHeight = height;
 }
 
-Surface first = Surface();
-Surface second = Surface();
-
 void onDraw() {
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     glEnable(GL_DEPTH_TEST);
@@ -384,42 +382,60 @@ void onDraw() {
     glRotatef(xAlfa, 1, 0, 0);
     glRotatef(zAlfa, 0, 0, 1);
         glPushMatrix();
-        glTranslatef(first.pt_insX, first.pt_insY, first.pt_insZ);
-        glRotatef(45, 1, 0, 0);
-        first.drawObject();
+            glTranslatef(first.pt_insX, first.pt_insY, first.pt_insZ);
+            //glRotatef(45, 1, 0, 0);
+            first.drawObject();
         glPopMatrix();
         glPushMatrix();
-        glTranslatef(second.pt_insX, second.pt_insY, second.pt_insZ);
-        glRotatef(surfaceAngle + 45, 1, 0, 0);
-        second.drawObject();
+            glTranslatef(second.pt_insX, second.pt_insY, second.pt_insZ);
+            glRotatef(surfaceAngle, 1, 0, 0);
+            second.drawObject();
+            updatePoints();
         glPopMatrix();
-        updatePoints();
-        glPushMatrix();
         find();
-        glPopMatrix();
     glPopMatrix();
     glFinish();
     SwapBuffers(hDC);
 }
 
+C3dVector MatrMultiply(double* matrix, C3dVector vektor) // если необходимы целочисленные значения, можно заменить на int
+{
+    C3dVector rez;
+    double temp = 0.0;
+    temp += matrix[0 * 3 + 0] * vektor.x;
+    temp += matrix[0 * 3 + 1] * vektor.y;
+    temp += matrix[0 * 3 + 2] * vektor.z;
+    rez.x = temp;
+    temp = 0.0;
+    temp += matrix[1 * 3 + 0] * vektor.x;
+    temp += matrix[1 * 3 + 1] * vektor.y;
+    temp += matrix[1 * 3 + 2] * vektor.z;
+    rez.y = temp;
+    temp = 0.0;
+    temp += matrix[2 * 3 + 0] * vektor.x;
+    temp += matrix[2 * 3 + 1] * vektor.y;
+    temp += matrix[2 * 3 + 2] * vektor.z;
+    rez.z = temp;
+    return rez;
+}
+
 void updatePoints() {
-    vector<C3dVector> v1 = first.points;
-    vector<C3dVector> v2 = second.points;
-    int size1 = v1.size();
-    int size2 = v2.size();
-    float r = 0.0f;
-    for (int i = 0; i < size1; i++) {
-        r = sqrt(cos(45) * v1[i].x + sin(45) * v1[i].y);
-        v1[i].x = cos(45) * r;
-        v1[i].y = sin(45) * r;
+   
+    int size = second.points.size();
+    angle = -surfaceAngle * (PI / 180);
+    double m[3][3] = {
+        {1, 0, 0},
+        {0, cos(angle), sin(angle)},
+        {0, -sin(angle), cos(angle)}
+    };
+    for (int i = 0; i < size; i++) {
+        second.points[i] = MatrMultiply(m[0], second.points[i]);
     }
-    for (int i = 0; i < size2; i++) {
-        r = sqrt(cos(surfaceAngle + 45) * v2[i].x + sin(surfaceAngle  + 45) * v2[i].y);
-        v2[i].x = cos(surfaceAngle + 45) * r;
-        v2[i].y = sin(surfaceAngle + 45) * r;
-    }
-    first.points = v1;
-    second.points = v2;
+   /* size = first.points.size();
+    for (int i = 0; i < size; i++) {
+        first.points[i].y = cos(45) * first.points[i].y + sin(45) * first.points[i].z;
+        first.points[i].z = -sin(45) * first.points[i].y + cos(45) * first.points[i].z;
+    }*/
 }
 
 RECT rect;
@@ -434,8 +450,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         SetPixelFormat(hDC);
         hGLRC = wglCreateContext(hDC);
         wglMakeCurrent(hDC, hGLRC);
-        SetTimer(hWnd, 0, 10, 0);
-        // создать квадратичный объект OpenGL
+        SetTimer(hWnd, 0, 40, 0);
         break;
     case WM_COMMAND:
     {
@@ -444,7 +459,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         switch (wmId)
         {
         case IDM_ABOUT:
-            DialogBox(hInst, MAKEINTRESOURCE(IDD_DIALOG), hWnd, About);
+            DialogBox(hInst, MAKEINTRESOURCE(IDD_DIALOG), hWnd, ChangeParameters);
             break;
         case IDM_EXIT:
             DestroyWindow(hWnd);
@@ -464,8 +479,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     case WM_TIMER:
         if ((g_angle = g_angle + g_angIncr) >= 360)
             g_angle -= 360;
-        //zAlfa += 0.1;
-        //InvalidateRect(hWnd, &rect, false);
         break;
     break;
     case WM_DESTROY:
@@ -502,6 +515,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             zAlfa = --zAlfa;
             InvalidateRect(hWnd, &rect, false);
         }
+        if (wParam == VK_BACK) {
+            angle += 0.1;
+            InvalidateRect(hWnd, &rect, false);
+        }
+        if (wParam == VK_ESCAPE) {
+            angle -= 0.1;
+            InvalidateRect(hWnd, &rect, false);
+        }
         break;
     default:
         return DefWindowProc(hWnd, message, wParam, lParam);
@@ -524,23 +545,49 @@ void drawSphere(C3dVector pt_ins) {
     gluSphere(glu, 0.5, 10, 10);
     glPopMatrix();
 }
+
+bool comp(C3dVector a, C3dVector b) {
+    return a.z < b.z;
+}
+
 void find() {
     vector<C3dVector> points1 = first.points;
     vector<C3dVector> points2 = second.points;
-    int length1 = points1.size() / 50;
-    int length2 = points2.size() / 50;
+    sort(points1.begin(), points1.end(), comp);
+    sort(points2.begin(), points2.end(), comp);
+    int length1 = points1.size();
+    int length2 = points2.size();
+    /*for (int i = 0; i < length2; i++) {
+        drawSphere(points2[i]);
+    }
     for (int i = 0; i < length1; i++) {
+        drawSphere(points1[i]);
+    }*/
+    //worked
+    double z = 0.0;
+    bool flag = false;
+    for (int i = 0; i < length1; i++) {
+        z = points1[i].z;
         for (int j = 0; j < length2; j++) {
-            float rez = fabs(points1[i].x - points2[j].x + points1[i].y - points2[j].y + points1[i].z - points2[j].z);
-            if (rez < 0.1) {
-               drawSphere(points1[i]);
+            if (flag && z - points2[j].z > 45)
+                break;
+            while (j < length2 && z - points2[j].z > 45)
+                j++;
+            flag = true;
+            double rezx = fabs(points1[i].x - points2[j].x);
+            double rezy = fabs(points1[i].y - points2[j].y);
+            double rezz = fabs(points1[i].z - points2[j].z);
+            if (rezx <= 0.45 && rezy <= 0.45 && rezz <= 0.45) {
+               drawSphere(points2[j]);
+               j = length2;
             }
         }
+        flag = false;
     }
 }
 
-// Обработчик сообщений для окна "О программе".
-INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+// Обработчик сообщений для окна "Изменить параметры".
+INT_PTR CALLBACK ChangeParameters(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
     UNREFERENCED_PARAMETER(lParam);
     switch (message)
