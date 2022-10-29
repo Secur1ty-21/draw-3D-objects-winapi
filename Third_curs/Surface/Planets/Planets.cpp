@@ -192,14 +192,14 @@ void Surface::drawObject() {
         glPushMatrix();
         if (i == 1) {
             glTranslatef(0, 0, lengthFromLowToMiddle / 2);
-            drawCone(hMiddle, hEnd, lengthFromMiddleToEnd, 20, true);
+            drawCone(hMiddle, hEnd, lengthFromMiddleToEnd, 30, true);
             glPushMatrix();
             glTranslatef(0, 0, lengthFromMiddleToEnd / 2);
             drawCircle(hEnd);
             glPopMatrix();
         }
         else {
-            drawCone(hLow, hMiddle, lengthFromLowToMiddle, 20, false);
+            drawCone(hLow, hMiddle, lengthFromLowToMiddle, 30, false);
             glPushMatrix();
             glTranslatef(0, 0, -lengthFromLowToMiddle / 2);
             drawCircle(hLow);
@@ -370,29 +370,28 @@ void CALLBACK resize(int width, int height)
     g_wndHeight = height;
 }
 
-void onDraw() {
+void onDraw() 
+{
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     glEnable(GL_DEPTH_TEST);
     first.points.clear();
     second.points.clear();
     InitProjection();
     SetMaterialAndLight0();
-
     glPushMatrix();
     glRotatef(xAlfa, 1, 0, 0);
     glRotatef(zAlfa, 0, 0, 1);
         glPushMatrix();
             glTranslatef(first.pt_insX, first.pt_insY, first.pt_insZ);
-            //glRotatef(45, 1, 0, 0);
             first.drawObject();
         glPopMatrix();
         glPushMatrix();
             glTranslatef(second.pt_insX, second.pt_insY, second.pt_insZ);
             glRotatef(surfaceAngle, 1, 0, 0);
             second.drawObject();
-            updatePoints();
+            updatePoints(); // Обновление точек после поворота поверхости
         glPopMatrix();
-        find();
+        find(); // Нахождение точек пересечения
     glPopMatrix();
     glFinish();
     SwapBuffers(hDC);
@@ -419,8 +418,8 @@ C3dVector MatrMultiply(double* matrix, C3dVector vektor) // если необх�
     return rez;
 }
 
-void updatePoints() {
-   
+void updatePoints() 
+{
     int size = second.points.size();
     angle = -surfaceAngle * (PI / 180);
     double m[3][3] = {
@@ -431,11 +430,6 @@ void updatePoints() {
     for (int i = 0; i < size; i++) {
         second.points[i] = MatrMultiply(m[0], second.points[i]);
     }
-   /* size = first.points.size();
-    for (int i = 0; i < size; i++) {
-        first.points[i].y = cos(45) * first.points[i].y + sin(45) * first.points[i].z;
-        first.points[i].z = -sin(45) * first.points[i].y + cos(45) * first.points[i].z;
-    }*/
 }
 
 RECT rect;
@@ -479,6 +473,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     case WM_TIMER:
         if ((g_angle = g_angle + g_angIncr) >= 360)
             g_angle -= 360;
+        zAlfa++;
+        InvalidateRect(hWnd, &rect, false);
         break;
     break;
     case WM_DESTROY:
@@ -557,31 +553,32 @@ void find() {
     sort(points2.begin(), points2.end(), comp);
     int length1 = points1.size();
     int length2 = points2.size();
-    /*for (int i = 0; i < length2; i++) {
-        drawSphere(points2[i]);
-    }
-    for (int i = 0; i < length1; i++) {
-        drawSphere(points1[i]);
-    }*/
     //worked
     double z = 0.0;
+    double prevZ = 0.0;
     bool flag = false;
+    int poz = 0;
     for (int i = 0; i < length1; i++) {
         z = points1[i].z;
-        for (int j = 0; j < length2; j++) {
-            if (flag && z - points2[j].z > 45)
+       for (int j = poz; j < length2; j++) {
+            if (flag && z - points2[j].z > 0.6)
                 break;
-            while (j < length2 && z - points2[j].z > 45)
+            while (j < length2 && z - points2[j].z > 0.6) {
                 j++;
+                poz = j;
+            }
+            if (j == length2) {
+                break;
+            }
             flag = true;
             double rezx = fabs(points1[i].x - points2[j].x);
             double rezy = fabs(points1[i].y - points2[j].y);
             double rezz = fabs(points1[i].z - points2[j].z);
-            if (rezx <= 0.45 && rezy <= 0.45 && rezz <= 0.45) {
+           if (rezx <= 0.6 && rezy <= 0.6 && rezz <= 0.6) {
                drawSphere(points2[j]);
-               j = length2;
+               break;
             }
-        }
+        } 
         flag = false;
     }
 }
